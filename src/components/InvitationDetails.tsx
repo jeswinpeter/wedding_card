@@ -3,7 +3,6 @@ import {
   Calendar,
   Clock,
   MapPin,
-  Heart,
   Share2,
   Navigation,
   Check,
