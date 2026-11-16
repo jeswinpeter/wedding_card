@@ -1,0 +1,7 @@
+# Local tools
+.tools-node/
+node_modules/
+dist/
+.next/
+build/
+*.local
