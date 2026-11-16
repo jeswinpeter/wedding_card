@@ -15,6 +15,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const userManuallyPausedRef = useRef(false);
+  const wasPlayingBeforeHiddenRef = useRef(false);
 
   useEffect(() => {
     const audio = new Audio("/audio/wedding-bgm.mp3");
@@ -22,23 +24,24 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     audio.volume = 0.75;
     audioRef.current = audio;
 
-    const handlePlayAttempt = async () => {
+    const startPlayback = async () => {
       try {
         await audio.play();
         setIsPlaying(true);
+        userManuallyPausedRef.current = false;
         onAudioStarted?.();
       } catch {
-        // Browser blocked autoplay without user gesture
         setIsPlaying(false);
       }
     };
 
     if (autoPlayTriggered) {
-      handlePlayAttempt();
+      startPlayback();
     }
 
+    // First user gesture unlock
     const unlockOnGesture = () => {
-      if (audioRef.current && audioRef.current.paused) {
+      if (audioRef.current && audioRef.current.paused && !userManuallyPausedRef.current) {
         audioRef.current
           .play()
           .then(() => {
@@ -56,10 +59,82 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     window.addEventListener("touchstart", unlockOnGesture, { passive: true });
     window.addEventListener("scroll", unlockOnGesture, { passive: true });
 
+    // Handle tab switching, window minimize, and mobile app backgrounding
+    const handleVisibilityChange = () => {
+      const audio = audioRef.current;
+      if (!audio) return;
+
+      if (document.hidden) {
+        // Tab switched away or minimized: STOP MUSIC
+        if (!audio.paused) {
+          wasPlayingBeforeHiddenRef.current = true;
+          audio.pause();
+          setIsPlaying(false);
+        }
+      } else {
+        // Tab is active again: RESUME MUSIC only if it was playing before
+        if (wasPlayingBeforeHiddenRef.current && !userManuallyPausedRef.current) {
+          audio
+            .play()
+            .then(() => {
+              setIsPlaying(true);
+              wasPlayingBeforeHiddenRef.current = false;
+            })
+            .catch(() => {
+              // Browser may require interaction to resume on mobile
+              const resumeOnNextTouch = () => {
+                audio
+                  .play()
+                  .then(() => setIsPlaying(true))
+                  .catch(() => {});
+                window.removeEventListener("touchstart", resumeOnNextTouch);
+                window.removeEventListener("click", resumeOnNextTouch);
+              };
+              window.addEventListener("touchstart", resumeOnNextTouch, { once: true, passive: true });
+              window.addEventListener("click", resumeOnNextTouch, { once: true, passive: true });
+            });
+        }
+      }
+    };
+
+    // Mobile Safari / Chrome pagehide & pageshow handlers
+    const handlePageHide = () => {
+      const audio = audioRef.current;
+      if (audio && !audio.paused) {
+        wasPlayingBeforeHiddenRef.current = true;
+        audio.pause();
+        setIsPlaying(false);
+      }
+    };
+
+    const handlePageShow = () => {
+      const audio = audioRef.current;
+      if (audio && wasPlayingBeforeHiddenRef.current && !userManuallyPausedRef.current) {
+        audio
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+            wasPlayingBeforeHiddenRef.current = false;
+          })
+          .catch(() => {});
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("blur", handlePageHide);
+    window.addEventListener("focus", handlePageShow);
+
     return () => {
       window.removeEventListener("click", unlockOnGesture);
       window.removeEventListener("touchstart", unlockOnGesture);
       window.removeEventListener("scroll", unlockOnGesture);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("blur", handlePageHide);
+      window.removeEventListener("focus", handlePageShow);
       audio.pause();
       audio.src = "";
     };
@@ -70,7 +145,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
+      userManuallyPausedRef.current = true;
+      wasPlayingBeforeHiddenRef.current = false;
     } else {
+      userManuallyPausedRef.current = false;
       audioRef.current
         .play()
         .then(() => {
@@ -93,7 +171,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
       <div
         className={cn(
-          "flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-amber-500/30 bg-stone-950/80 backdrop-blur-xl shadow-xl transition-all duration-300",
+          "flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-500/30 bg-stone-950/80 backdrop-blur-xl shadow-xl transition-all duration-300",
           isPlaying ? "border-amber-400/60 shadow-amber-500/20" : "opacity-80"
         )}
       >

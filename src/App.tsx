@@ -20,15 +20,18 @@ export function App() {
       {/* Auspicious Welcome Entrance Modal */}
       {!welcomeDismissed && <WelcomeOverlay onEnter={handleWelcomeEnter} />}
 
-      {/* Floating Background Audio Player */}
+      {/* Floating Background Audio Player (with tab switching auto-pause) */}
       <AudioPlayer autoPlayTriggered={autoPlayAudio} />
 
       {/* Smooth Image Sequence Wedding Card Experience */}
       <main className="w-full">
         <WeddingCardCanvas />
 
-        {/* Extended Invitation & Event Details */}
-        <section className="bg-gradient-to-b from-[#1a0f0a] via-[#140b07] to-[#0d0704]">
+        {/* Extended Invitation & Ceremony Details */}
+        <section
+          id="invitation-details"
+          className="relative z-20 bg-gradient-to-b from-[#1a0f0a] via-[#140b07] to-[#0d0704] border-t border-amber-500/20 shadow-2xl"
+        >
           <InvitationDetails />
         </section>
       </main>

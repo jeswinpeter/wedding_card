@@ -85,7 +85,7 @@ export const InvitationDetails: React.FC = () => {
         <div className="h-px w-16 bg-gradient-to-r from-transparent to-amber-500/50"></div>
         <Sparkles className="w-4 h-4 text-amber-400" />
         <span className="text-xs font-heading tracking-widest text-amber-300 uppercase">
-          Ceremony & Details
+          Ceremony Details
         </span>
         <Sparkles className="w-4 h-4 text-amber-400" />
         <div className="h-px w-16 bg-gradient-to-l from-transparent to-amber-500/50"></div>
@@ -182,25 +182,6 @@ export const InvitationDetails: React.FC = () => {
             </div>
           </div>
 
-          {/* Family Details */}
-          <div className="p-3.5 rounded-xl bg-black/40 border border-amber-500/15 space-y-2.5 text-xs">
-            <div className="border-b border-stone-800 pb-2">
-              <span className="text-[10px] uppercase tracking-wider text-amber-400/80 font-medium">
-                Groom's Parents
-              </span>
-              <p className="text-amber-100 font-medium mt-0.5">
-                Mr. Santhosh Moothedam & Mrs. Resmi Moothedam
-              </p>
-            </div>
-            <div>
-              <span className="text-[10px] uppercase tracking-wider text-amber-400/80 font-medium">
-                Bride's Parents
-              </span>
-              <p className="text-amber-100 font-medium mt-0.5">
-                Mr. Ramachandran Naduviledam & Mrs. Maya Naduviledam
-              </p>
-            </div>
-          </div>
 
           {/* Action Buttons Grid */}
           <div className="grid grid-cols-2 gap-2.5 pt-2">
@@ -275,7 +256,6 @@ export const InvitationDetails: React.FC = () => {
 
       {/* Footer Blessing */}
       <div className="text-center pt-4 pb-12 space-y-2">
-        <Heart className="w-5 h-5 text-amber-400 mx-auto fill-current animate-pulse-subtle" />
         <p className="text-xs text-amber-200/80 font-serif-elegant italic">
           "Two souls with but a single thought, two hearts that beat as one."
         </p>

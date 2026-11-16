@@ -1,16 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import confetti from "canvas-confetti";
-import {
-  ChevronDown,
-  Play,
-  Pause,
-  RotateCcw,
-  Maximize2,
-  Minimize2,
-  Sparkles,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
+import { ChevronDown } from "lucide-react";
 
 interface WeddingCardCanvasProps {
   onProgressChange?: (progress: number) => void;
@@ -28,9 +18,7 @@ export const WeddingCardCanvas: React.FC<WeddingCardCanvasProps> = ({
 
   // Cached images
   const imagesRef = useRef<(HTMLImageElement | null)[]>(new Array(TOTAL_FRAMES).fill(null));
-  const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
-  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
-  const [fitMode, setFitMode] = useState<"cover" | "contain">("cover");
+  const [scrollProgress, setScrollProgress] = useState(0);
   const [hasCelebrated, setHasCelebrated] = useState(false);
 
   // Smooth lerp frame tracking
@@ -72,101 +60,101 @@ export const WeddingCardCanvas: React.FC<WeddingCardCanvasProps> = ({
     };
   }, []);
 
-  // Draw frame on canvas with high DPI and responsive aspect ratio
-  const drawFrame = useCallback(
-    (frameIndex: number) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+  // Draw frame on canvas with high DPI and mobile-first framing
+  const drawFrame = useCallback((frameIndex: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-      const img = imagesRef.current[frameIndex] || imagesRef.current[0];
-      if (!img || !img.complete || img.naturalWidth === 0) return;
+    const img = imagesRef.current[frameIndex] || imagesRef.current[0];
+    if (!img || !img.complete || img.naturalWidth === 0) return;
 
-      const dpr = window.devicePixelRatio || 1;
-      const displayWidth = canvas.clientWidth;
-      const displayHeight = canvas.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+    const displayWidth = canvas.clientWidth;
+    const displayHeight = canvas.clientHeight;
 
-      if (canvas.width !== displayWidth * dpr || canvas.height !== displayHeight * dpr) {
-        canvas.width = displayWidth * dpr;
-        canvas.height = displayHeight * dpr;
+    if (canvas.width !== displayWidth * dpr || canvas.height !== displayHeight * dpr) {
+      canvas.width = displayWidth * dpr;
+      canvas.height = displayHeight * dpr;
+    }
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, displayWidth, displayHeight);
+
+    // Fill deep wedding textured background
+    ctx.fillStyle = "#1a0f0a";
+    ctx.fillRect(0, 0, displayWidth, displayHeight);
+
+    const imgWidth = img.naturalWidth;
+    const imgHeight = img.naturalHeight;
+    const isPortraitMobile = displayWidth < displayHeight;
+
+    let scale: number;
+    let offsetX: number;
+    let offsetY: number;
+
+    if (isPortraitMobile) {
+      // In mobile portrait, the central invitation card is ~720px wide in the 1920x1080 image.
+      // Scaling by displayWidth / 720 ensures the card text, bride/groom hands, and motifs
+      // fit the mobile screen width with natural breathing room, without cutting off any text.
+      const targetCardWidthInSource = 720;
+      scale = displayWidth / targetCardWidthInSource;
+
+      // Don't let height exceed viewport
+      if (imgHeight * scale > displayHeight * 0.98) {
+        scale = (displayHeight * 0.98) / imgHeight;
       }
 
-      ctx.save();
-      ctx.scale(dpr, dpr);
-      ctx.clearRect(0, 0, displayWidth, displayHeight);
+      const drawWidth = imgWidth * scale;
+      const drawHeight = imgHeight * scale;
 
-      // Calculate source and destination bounds
-      const imgWidth = img.naturalWidth;
-      const imgHeight = img.naturalHeight;
-      const imgAspect = imgWidth / imgHeight;
-      const canvasAspect = displayWidth / displayHeight;
+      // Center horizontally on the card center (x ≈ 960 in original)
+      offsetX = displayWidth / 2 - 960 * scale;
+      offsetY = (displayHeight - drawHeight) / 2;
 
-      let drawWidth = displayWidth;
-      let drawHeight = displayHeight;
-      let offsetX = 0;
-      let offsetY = 0;
-
-      if (fitMode === "cover") {
-        // On mobile portrait, cover ensures the central wedding card fills the screen width/height nicely
-        if (canvasAspect > imgAspect) {
-          drawWidth = displayWidth;
-          drawHeight = displayWidth / imgAspect;
-          offsetY = (displayHeight - drawHeight) / 2;
-        } else {
-          drawHeight = displayHeight;
-          drawWidth = displayHeight * imgAspect;
-          offsetX = (displayWidth - drawWidth) / 2;
-        }
-      } else {
-        // Contain mode: entire 16:9 card is visible
-        if (canvasAspect > imgAspect) {
-          drawHeight = displayHeight;
-          drawWidth = displayHeight * imgAspect;
-          offsetX = (displayWidth - drawWidth) / 2;
-        } else {
-          drawWidth = displayWidth;
-          drawHeight = displayWidth / imgAspect;
-          offsetY = (displayHeight - drawHeight) / 2;
-        }
-      }
-
-      // Fill background texture color
-      ctx.fillStyle = "#1a0f0a";
-      ctx.fillRect(0, 0, displayWidth, displayHeight);
-
-      // Draw active frame image
       ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+    } else {
+      // Desktop / Landscape: fit to screen gracefully
+      const scaleX = displayWidth / imgWidth;
+      const scaleY = displayHeight / imgHeight;
+      scale = Math.min(scaleX, scaleY);
 
-      // Subtle warm vignette on edges
-      const gradient = ctx.createRadialGradient(
-        displayWidth / 2,
-        displayHeight / 2,
-        Math.min(displayWidth, displayHeight) * 0.45,
-        displayWidth / 2,
-        displayHeight / 2,
-        Math.max(displayWidth, displayHeight) * 0.75
-      );
-      gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
-      gradient.addColorStop(1, "rgba(20, 10, 5, 0.45)");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, displayWidth, displayHeight);
+      const drawWidth = imgWidth * scale;
+      const drawHeight = imgHeight * scale;
+      offsetX = (displayWidth - drawWidth) / 2;
+      offsetY = (displayHeight - drawHeight) / 2;
 
-      ctx.restore();
-    },
-    [fitMode]
-  );
+      ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+    }
+
+    // Gentle edge vignette for an organic card feel
+    const gradient = ctx.createRadialGradient(
+      displayWidth / 2,
+      displayHeight / 2,
+      Math.min(displayWidth, displayHeight) * 0.42,
+      displayWidth / 2,
+      displayHeight / 2,
+      Math.max(displayWidth, displayHeight) * 0.72
+    );
+    gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+    gradient.addColorStop(1, "rgba(22, 11, 6, 0.45)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, displayWidth, displayHeight);
+
+    ctx.restore();
+  }, []);
 
   // Smooth animation loop using lerp
   useEffect(() => {
     const loop = () => {
       const diff = targetFrameRef.current - renderedFrameRef.current;
       if (Math.abs(diff) > 0.05) {
-        renderedFrameRef.current += diff * 0.25;
+        renderedFrameRef.current += diff * 0.28;
         const frameToDraw = Math.round(renderedFrameRef.current);
         const clamped = Math.max(0, Math.min(TOTAL_FRAMES - 1, frameToDraw));
         drawFrame(clamped);
-        setCurrentFrameIndex(clamped);
       }
       animFrameIdRef.current = requestAnimationFrame(loop);
     };
@@ -181,47 +169,34 @@ export const WeddingCardCanvas: React.FC<WeddingCardCanvasProps> = ({
   const triggerPetalCelebration = () => {
     const colors = ["#FFD700", "#FFA500", "#FF6347", "#FFE4B5", "#F4C430"];
     confetti({
-      particleCount: 50,
+      particleCount: 45,
       spread: 70,
-      origin: { y: 0.6 },
+      origin: { y: 0.55 },
       colors,
-      scalar: 1.2,
+      scalar: 1.1,
       ticks: 200,
     });
-    setTimeout(() => {
-      confetti({
-        particleCount: 40,
-        angle: 60,
-        spread: 60,
-        origin: { x: 0 },
-        colors,
-      });
-      confetti({
-        particleCount: 40,
-        angle: 120,
-        spread: 60,
-        origin: { x: 1 },
-        colors,
-      });
-    }, 250);
   };
 
-  // Handle scroll events
+  // Pure scroll listener
   useEffect(() => {
     const handleScroll = () => {
       if (!containerRef.current) return;
       const scrollY = window.scrollY;
-      const totalScroll = containerRef.current.offsetHeight - window.innerHeight;
-      if (totalScroll <= 0) return;
+      const containerHeight = containerRef.current.offsetHeight;
+      const scrollTrack = containerHeight - window.innerHeight;
+      if (scrollTrack <= 0) return;
 
-      const progress = Math.max(0, Math.min(1, scrollY / totalScroll));
+      const progress = Math.max(0, Math.min(1, scrollY / scrollTrack));
+      setScrollProgress(progress);
+
       const targetFrame = Math.floor(progress * (TOTAL_FRAMES - 1));
       targetFrameRef.current = targetFrame;
 
       onProgressChange?.(progress);
 
-      // Trigger celebration when invitation unfolds (> 92%)
-      if (progress > 0.92 && !hasCelebrated) {
+      // Trigger flower celebration once when card unfolds
+      if (progress > 0.9 && !hasCelebrated) {
         setHasCelebrated(true);
         triggerPetalCelebration();
         onCardUnfolded?.();
@@ -241,185 +216,55 @@ export const WeddingCardCanvas: React.FC<WeddingCardCanvasProps> = ({
     return () => window.removeEventListener("resize", handleResize);
   }, [drawFrame]);
 
-  // Autoplay animation toggle
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isAutoPlaying) {
-      interval = setInterval(() => {
-        targetFrameRef.current = (targetFrameRef.current + 1) % TOTAL_FRAMES;
-        if (targetFrameRef.current === TOTAL_FRAMES - 1) {
-          setIsAutoPlaying(false);
-          triggerPetalCelebration();
-        }
-      }, 55);
-    }
-    return () => clearInterval(interval);
-  }, [isAutoPlaying]);
-
-  const handleSliderScrub = (value: number[]) => {
-    setIsAutoPlaying(false);
-    const frame = value[0];
-    targetFrameRef.current = frame;
-
-    if (containerRef.current) {
-      const totalScroll = containerRef.current.offsetHeight - window.innerHeight;
-      const newScrollY = (frame / (TOTAL_FRAMES - 1)) * totalScroll;
-      window.scrollTo({ top: newScrollY, behavior: "instant" });
+  const scrollToDetails = () => {
+    const detailsElem = document.getElementById("invitation-details");
+    if (detailsElem) {
+      detailsElem.scrollIntoView({ behavior: "smooth" });
     }
   };
-
-  const handleReset = () => {
-    setIsAutoPlaying(false);
-    targetFrameRef.current = 0;
-    renderedFrameRef.current = 0;
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const toggleAutoPlay = () => {
-    if (targetFrameRef.current >= TOTAL_FRAMES - 1) {
-      targetFrameRef.current = 0;
-      renderedFrameRef.current = 0;
-      window.scrollTo({ top: 0, behavior: "instant" });
-    }
-    setIsAutoPlaying(!isAutoPlaying);
-  };
-
-  const scrollProgress = currentFrameIndex / (TOTAL_FRAMES - 1);
 
   return (
-    <div ref={containerRef} className="relative w-full h-[450vh] bg-[#1a0f0a]">
-      {/* Sticky Canvas Container */}
+    <div ref={containerRef} className="relative w-full h-[220vh] bg-[#1a0f0a]">
+      {/* Sticky Canvas Container that pins the animation during scroll */}
       <div className="sticky top-0 h-[100dvh] w-full overflow-hidden flex flex-col justify-between">
-        {/* The HTML5 Canvas for silky frame scrubbing */}
+        {/* The HTML5 Canvas: pointer-events-none ensures 100% natural touch scrolling on mobile */}
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full object-cover touch-none"
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
         />
 
-        {/* Top Floating Controls Bar */}
-        <div className="relative z-30 flex items-center justify-between p-4 pt-5 pointer-events-none">
-          {/* Couple monogram badge */}
-          <div className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-500/30 bg-stone-950/75 backdrop-blur-md shadow-lg">
-            <span className="text-xs font-heading font-bold text-amber-300">
+        {/* Top subtle monogram badge */}
+        <div className="relative z-20 flex items-center justify-between p-4 pt-5 pointer-events-none">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-500/25 bg-stone-950/60 backdrop-blur-md shadow-md">
+            <span className="text-xs font-heading font-bold text-amber-300/90">
               V & A
             </span>
-            <span className="text-[10px] text-stone-400">|</span>
-            <span className="text-[10px] font-serif text-amber-200">
+            <span className="text-[10px] text-stone-500">|</span>
+            <span className="text-[10px] font-serif text-amber-200/90">
               വേളി
             </span>
           </div>
-
-          {/* View Mode Toggle (Cover / Contain) */}
-          <div className="pointer-events-auto flex items-center gap-1.5">
-            <Button
-              variant="outline"
-              size="iconSm"
-              onClick={() => setFitMode(fitMode === "cover" ? "contain" : "cover")}
-              className="h-8 w-8 rounded-full border-amber-500/30 bg-stone-950/75 text-amber-300 shadow-md"
-              title={fitMode === "cover" ? "Show Full Frame" : "Fill Screen"}
-            >
-              {fitMode === "cover" ? (
-                <Minimize2 className="w-3.5 h-3.5" />
-              ) : (
-                <Maximize2 className="w-3.5 h-3.5" />
-              )}
-            </Button>
-          </div>
         </div>
 
-        {/* Floating Scroll Indicator on Initial Screen */}
-        {scrollProgress < 0.1 && (
-          <div className="relative z-30 flex flex-col items-center pb-24 text-center pointer-events-none animate-float">
-            <div className="px-4 py-2 rounded-full border border-amber-400/40 bg-stone-950/80 backdrop-blur-md shadow-2xl space-y-1">
-              <p className="text-xs font-heading tracking-widest text-amber-200 font-semibold">
-                SCROLL TO UNFOLD
-              </p>
-              <div className="flex items-center justify-center gap-1 text-[10px] text-amber-300/80">
-                <span>The Wedding Invitation</span>
-              </div>
-            </div>
-            <ChevronDown className="w-6 h-6 text-amber-400 animate-bounce mt-2" />
+        {/* Simple down arrow at the bottom with slightly lower opacity */}
+        {scrollProgress < 0.08 && (
+          <div className="absolute bottom-6 inset-x-0 flex flex-col items-center pointer-events-none transition-opacity duration-700 opacity-45">
+            <ChevronDown className="w-7 h-7 text-amber-200 animate-bounce" />
           </div>
         )}
 
-        {/* Bottom Floating Control Deck (Mobile Optimized) */}
-        <div className="relative z-30 p-4 pb-6 w-full max-w-md mx-auto pointer-events-auto">
-          <div className="p-3.5 rounded-2xl border border-amber-500/30 bg-stone-950/85 backdrop-blur-xl shadow-2xl space-y-2.5">
-            {/* Progress status and percentage */}
-            <div className="flex items-center justify-between text-[11px] text-stone-300">
-              <span className="font-heading text-amber-300 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-400" />
-                {scrollProgress < 0.2
-                  ? "Card Cover"
-                  : scrollProgress < 0.6
-                  ? "Opening Envelope..."
-                  : "Invitation Revealed"}
-              </span>
-              <span className="tabular-nums font-mono text-[10px] text-amber-200/70">
-                {Math.round(scrollProgress * 100)}%
-              </span>
-            </div>
-
-            {/* Interactive scrub slider */}
-            <Slider
-              value={[currentFrameIndex]}
-              max={TOTAL_FRAMES - 1}
-              step={1}
-              onValueChange={handleSliderScrub}
-              className="py-1 cursor-pointer"
-            />
-
-            {/* Play/Pause, Reset, and Quick Jump buttons */}
-            <div className="flex items-center justify-between pt-1">
-              <div className="flex items-center gap-1.5">
-                <Button
-                  variant="gold"
-                  size="sm"
-                  onClick={toggleAutoPlay}
-                  className="h-8 px-3 text-xs gap-1.5 rounded-lg"
-                >
-                  {isAutoPlaying ? (
-                    <>
-                      <Pause className="w-3.5 h-3.5 fill-current" />
-                      <span>Pause</span>
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>{currentFrameIndex >= TOTAL_FRAMES - 1 ? "Replay" : "Auto Play"}</span>
-                    </>
-                  )}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="iconSm"
-                  onClick={handleReset}
-                  className="h-8 w-8 rounded-lg text-amber-300"
-                  title="Return to Beginning"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-
-              {/* Jump to final invitation button */}
-              {scrollProgress < 0.85 && (
-                <button
-                  onClick={() => {
-                    targetFrameRef.current = TOTAL_FRAMES - 1;
-                    if (containerRef.current) {
-                      const totalScroll = containerRef.current.offsetHeight - window.innerHeight;
-                      window.scrollTo({ top: totalScroll, behavior: "smooth" });
-                    }
-                  }}
-                  className="text-[11px] text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors font-medium"
-                >
-                  Skip to Card →
-                </button>
-              )}
-            </div>
+        {/* When invitation has unfolded, show subtle hint to continue to details */}
+        {scrollProgress > 0.85 && (
+          <div className="absolute bottom-6 inset-x-0 flex flex-col items-center z-20">
+            <button
+              onClick={scrollToDetails}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-500/30 bg-stone-950/80 backdrop-blur-md text-amber-300 text-xs tracking-wider opacity-70 hover:opacity-100 transition-all duration-300 animate-bounce"
+            >
+              <span>Ceremony Details</span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
