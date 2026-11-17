@@ -49,6 +49,9 @@
   .font-script {
     font-family: 'Great Vibes', cursive;
   }
+  .font-malayalam {
+    font-family: 'Noto Serif Malayalam', Georgia, serif;
+  }
   .gold-gradient-text {
     background: linear-gradient(135deg, #f7e08b 0%, #d4af37 50%, #997a15 100%);
     -webkit-background-clip: text;
