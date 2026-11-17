@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { WelcomeOverlay } from "@/components/WelcomeOverlay";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { WeddingCardCanvas } from "@/components/WeddingCardCanvas";
@@ -8,7 +8,15 @@ export function App() {
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const [autoPlayAudio, setAutoPlayAudio] = useState(false);
 
+  useEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+    window.scrollTo(0, 0);
+  }, []);
+
   const handleWelcomeEnter = (playMusic: boolean) => {
+    window.scrollTo(0, 0);
     setWelcomeDismissed(true);
     if (playMusic) {
       setAutoPlayAudio(true);
@@ -25,7 +33,7 @@ export function App() {
 
       {/* Smooth Image Sequence Wedding Card Experience */}
       <main className="w-full">
-        <WeddingCardCanvas />
+        <WeddingCardCanvas isLocked={!welcomeDismissed} />
 
         {/* Extended Invitation & Ceremony Details */}
         <section

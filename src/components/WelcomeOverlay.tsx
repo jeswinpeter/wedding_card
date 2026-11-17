@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Music, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -9,16 +9,58 @@ interface WelcomeOverlayProps {
 export const WelcomeOverlay: React.FC<WelcomeOverlayProps> = ({ onEnter }) => {
   const [fading, setFading] = useState(false);
 
+  // Lock all scrolling while the welcome overlay is active
+  useEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+    window.scrollTo(0, 0);
+
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+    const originalBodyTouchAction = document.body.style.touchAction;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+
+    const preventScroll = (e: TouchEvent | WheelEvent) => {
+      e.preventDefault();
+    };
+
+    const preventKeyScroll = (e: KeyboardEvent) => {
+      if (
+        ["Space", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(e.code)
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener("wheel", preventScroll, { passive: false });
+    window.addEventListener("touchmove", preventScroll, { passive: false });
+    window.addEventListener("keydown", preventKeyScroll, { passive: false });
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      document.body.style.touchAction = originalBodyTouchAction;
+      window.removeEventListener("wheel", preventScroll);
+      window.removeEventListener("touchmove", preventScroll);
+      window.removeEventListener("keydown", preventKeyScroll);
+    };
+  }, []);
+
   const handleOpen = (playMusic: boolean) => {
     setFading(true);
     setTimeout(() => {
+      window.scrollTo(0, 0);
       onEnter(playMusic);
     }, 600);
   };
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-between p-6 bg-gradient-to-b from-[#180d08] via-[#24130b] to-[#120804] text-amber-50 transition-all duration-700 ${
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-between p-6 bg-gradient-to-b from-[#180d08] via-[#24130b] to-[#120804] text-amber-50 transition-all duration-700 touch-none overscroll-none select-none overflow-hidden ${
         fading ? "opacity-0 pointer-events-none scale-105" : "opacity-100"
       }`}
     >
@@ -78,15 +120,15 @@ export const WelcomeOverlay: React.FC<WelcomeOverlayProps> = ({ onEnter }) => {
           className="w-full py-6 text-base tracking-wide rounded-xl shadow-2xl flex items-center justify-center gap-2.5 font-heading group"
         >
           <Music className="w-5 h-5 text-stone-950 group-hover:scale-110 transition-transform" />
-          <span>Open with Music</span>
+          <span>Open Invitation</span>
         </Button>
 
-        <button
+        {/* <button
           onClick={() => handleOpen(false)}
           className="text-xs text-amber-300/70 hover:text-amber-200 underline underline-offset-4 transition-colors"
         >
           Enter silently
-        </button>
+        </button> */}
 
         <p className="text-[10px] text-amber-200/50 pt-2 tracking-wide">
           Scroll down on screen to unfold the wedding card

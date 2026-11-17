@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react";
 interface WeddingCardCanvasProps {
   onProgressChange?: (progress: number) => void;
   onCardUnfolded?: () => void;
+  isLocked?: boolean;
 }
 
 const TOTAL_FRAMES = 118;
@@ -12,6 +13,7 @@ const TOTAL_FRAMES = 118;
 export const WeddingCardCanvas: React.FC<WeddingCardCanvasProps> = ({
   onProgressChange,
   onCardUnfolded,
+  isLocked = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -178,9 +180,24 @@ export const WeddingCardCanvas: React.FC<WeddingCardCanvasProps> = ({
     });
   };
 
+  // Keep pinned at frame 0 whenever locked
+  useEffect(() => {
+    if (isLocked) {
+      setScrollProgress(0);
+      targetFrameRef.current = 0;
+      renderedFrameRef.current = 0;
+      drawFrame(0);
+    }
+  }, [isLocked, drawFrame]);
+
   // Pure scroll listener
   useEffect(() => {
     const handleScroll = () => {
+      if (isLocked) {
+        setScrollProgress(0);
+        targetFrameRef.current = 0;
+        return;
+      }
       if (!containerRef.current) return;
       const scrollY = window.scrollY;
       const containerHeight = containerRef.current.offsetHeight;
@@ -205,7 +222,7 @@ export const WeddingCardCanvas: React.FC<WeddingCardCanvasProps> = ({
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [onProgressChange, onCardUnfolded, hasCelebrated]);
+  }, [onProgressChange, onCardUnfolded, hasCelebrated, isLocked]);
 
   // Handle window resize
   useEffect(() => {
