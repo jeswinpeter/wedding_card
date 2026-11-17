@@ -28,6 +28,14 @@ export const WeddingCardCanvas: React.FC<WeddingCardCanvasProps> = ({
   const renderedFrameRef = useRef(0);
   const animFrameIdRef = useRef<number | null>(null);
 
+  // Inactivity auto-scroll tracking refs
+  const timer8sRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timer30sRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isAutoScrollingRef = useRef(false);
+  const scrollAnimRef = useRef<number | null>(null);
+  const hasVisitedDetailsRef = useRef(false);
+  const isCardRevealedRef = useRef(false);
+
   // Format frame filename
   const getFrameUrl = (index: number) => {
     const frameNum = (index + 1).toString().padStart(3, "0");
@@ -180,15 +188,169 @@ export const WeddingCardCanvas: React.FC<WeddingCardCanvasProps> = ({
     });
   };
 
-  // Keep pinned at frame 0 whenever locked
+  // Cancel any active auto-scroll animation
+  const cancelAutoScroll = useCallback(() => {
+    if (isAutoScrollingRef.current) {
+      isAutoScrollingRef.current = false;
+      if (scrollAnimRef.current) {
+        cancelAnimationFrame(scrollAnimRef.current);
+        scrollAnimRef.current = null;
+      }
+    }
+  }, []);
+
+  // Clear all pending inactivity timers
+  const clearTimers = useCallback(() => {
+    if (timer8sRef.current) {
+      clearTimeout(timer8sRef.current);
+      timer8sRef.current = null;
+    }
+    if (timer30sRef.current) {
+      clearTimeout(timer30sRef.current);
+      timer30sRef.current = null;
+    }
+  }, []);
+
+  // Custom smooth easing scroll function
+  const animateScrollTo = useCallback(
+    (targetY: number, duration: number, onComplete?: () => void) => {
+      cancelAutoScroll();
+
+      const startY = window.scrollY;
+      const distance = targetY - startY;
+      if (Math.abs(distance) < 5) {
+        onComplete?.();
+        return;
+      }
+
+      const startTime = performance.now();
+      isAutoScrollingRef.current = true;
+
+      const easeInOutCubic = (t: number) => {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      };
+
+      const step = (currentTime: number) => {
+        if (!isAutoScrollingRef.current) return;
+
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = easeInOutCubic(progress);
+
+        window.scrollTo(0, startY + distance * ease);
+
+        if (progress < 1) {
+          scrollAnimRef.current = requestAnimationFrame(step);
+        } else {
+          isAutoScrollingRef.current = false;
+          scrollAnimRef.current = null;
+          onComplete?.();
+        }
+      };
+
+      scrollAnimRef.current = requestAnimationFrame(step);
+    },
+    [cancelAutoScroll]
+  );
+
+  // 30s timer: after card reveal, if not scrolled to details for 30s, scroll slowly to details
+  const start30sTimer = useCallback(() => {
+    if (timer30sRef.current) clearTimeout(timer30sRef.current);
+    if (hasVisitedDetailsRef.current || isLocked) return;
+
+    timer30sRef.current = setTimeout(() => {
+      if (hasVisitedDetailsRef.current || isLocked) return;
+
+      const detailsElem = document.getElementById("invitation-details");
+      const targetY = detailsElem
+        ? detailsElem.getBoundingClientRect().top + window.scrollY
+        : (containerRef.current ? containerRef.current.offsetTop + containerRef.current.offsetHeight : window.scrollY + window.innerHeight);
+
+      if (window.scrollY >= targetY - 40) {
+        hasVisitedDetailsRef.current = true;
+        return;
+      }
+
+      // Scroll slowly to the details page (~2600ms)
+      animateScrollTo(targetY, 2600, () => {
+        hasVisitedDetailsRef.current = true;
+      });
+    }, 10000);
+  }, [isLocked, animateScrollTo]);
+
+  // 8s timer: if card page has not been scrolled for 8s, smoothly reveal the final card
+  const start8sTimer = useCallback(() => {
+    if (timer8sRef.current) clearTimeout(timer8sRef.current);
+    if (isCardRevealedRef.current || isLocked) return;
+
+    timer8sRef.current = setTimeout(() => {
+      if (isCardRevealedRef.current || isLocked || !containerRef.current) return;
+
+      const scrollTrack = containerRef.current.offsetHeight - window.innerHeight;
+      if (scrollTrack <= 0) return;
+
+      if (window.scrollY >= scrollTrack - 20) {
+        isCardRevealedRef.current = true;
+        start30sTimer();
+        return;
+      }
+
+      // Smoothly scroll to reveal final card (~2800ms)
+      animateScrollTo(scrollTrack, 2800, () => {
+        isCardRevealedRef.current = true;
+        start30sTimer();
+      });
+    }, 4000);
+  }, [isLocked, animateScrollTo, start30sTimer]);
+
+  // Handle lock state and trigger 8s timer when wedding card page opens
   useEffect(() => {
     if (isLocked) {
+      clearTimers();
+      cancelAutoScroll();
       setScrollProgress(0);
       targetFrameRef.current = 0;
       renderedFrameRef.current = 0;
       drawFrame(0);
+      isCardRevealedRef.current = false;
+      hasVisitedDetailsRef.current = false;
+    } else {
+      // Card page became active: begin 8s inactivity countdown
+      start8sTimer();
     }
-  }, [isLocked, drawFrame]);
+
+    return () => {
+      clearTimers();
+      cancelAutoScroll();
+    };
+  }, [isLocked, clearTimers, cancelAutoScroll, drawFrame, start8sTimer]);
+
+  // Cancel auto-scroll immediately if the user touches, wheels, or presses keys
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      cancelAutoScroll();
+    };
+
+    window.addEventListener("wheel", handleUserInteraction, { passive: true });
+    window.addEventListener("touchstart", handleUserInteraction, { passive: true });
+    window.addEventListener("pointerdown", handleUserInteraction, { passive: true });
+    window.addEventListener("keydown", handleUserInteraction, { passive: true });
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        cancelAutoScroll();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("wheel", handleUserInteraction);
+      window.removeEventListener("touchstart", handleUserInteraction);
+      window.removeEventListener("pointerdown", handleUserInteraction);
+      window.removeEventListener("keydown", handleUserInteraction);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [cancelAutoScroll]);
 
   // Pure scroll listener
   useEffect(() => {
@@ -218,11 +380,39 @@ export const WeddingCardCanvas: React.FC<WeddingCardCanvasProps> = ({
         triggerPetalCelebration();
         onCardUnfolded?.();
       }
+
+      // Manage inactivity timers when user scrolls manually
+      if (!isAutoScrollingRef.current) {
+        if (scrollY >= scrollTrack + 80) {
+          // User scrolled down into details section
+          hasVisitedDetailsRef.current = true;
+          isCardRevealedRef.current = true;
+          clearTimers();
+        } else if (progress >= 0.95) {
+          // Final card is reached
+          isCardRevealedRef.current = true;
+          if (timer8sRef.current) {
+            clearTimeout(timer8sRef.current);
+            timer8sRef.current = null;
+          }
+          if (!hasVisitedDetailsRef.current) {
+            start30sTimer();
+          }
+        } else {
+          // User scrolled but hasn't reached final card: reset 8s timer
+          isCardRevealedRef.current = false;
+          if (timer30sRef.current) {
+            clearTimeout(timer30sRef.current);
+            timer30sRef.current = null;
+          }
+          start8sTimer();
+        }
+      }
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [onProgressChange, onCardUnfolded, hasCelebrated, isLocked]);
+  }, [onProgressChange, onCardUnfolded, hasCelebrated, isLocked, clearTimers, start8sTimer, start30sTimer]);
 
   // Handle window resize
   useEffect(() => {
@@ -234,6 +424,9 @@ export const WeddingCardCanvas: React.FC<WeddingCardCanvasProps> = ({
   }, [drawFrame]);
 
   const scrollToDetails = () => {
+    clearTimers();
+    cancelAutoScroll();
+    hasVisitedDetailsRef.current = true;
     const detailsElem = document.getElementById("invitation-details");
     if (detailsElem) {
       detailsElem.scrollIntoView({ behavior: "smooth" });

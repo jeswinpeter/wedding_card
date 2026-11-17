@@ -89,9 +89,7 @@ export const WelcomeOverlay: React.FC<WelcomeOverlayProps> = ({ onEnter }) => {
           <h1 className="text-5xl sm:text-6xl font-serif text-amber-200/90 font-bold tracking-wider drop-shadow-md">
             വേളി
           </h1>
-          <p className="text-[11px] tracking-[0.25em] uppercase text-amber-400/80 mt-1">
-            VEELI • THE SACRED UNION
-          </p>
+          
         </div>
 
         <div className="w-24 h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent mx-auto"></div>
